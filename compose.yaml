@@ -1,0 +1,36 @@
+services:
+  api:
+    build: .
+    container_name: blog-api-container
+    depends_on:
+      - database
+    ports:
+      - "8088:8088"
+    env_file:
+      - .env
+    networks:
+      - blog-net
+
+  database:
+    image: mysql:9.3.0
+    restart: always
+    container_name: database-container
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "3306:3306"
+    env_file:
+      - .env
+    networks:
+      - blog-net
+    volumes:
+      - blog-db-data:/var/lib/mysql
+
+volumes:
+  blog-db-data:
+
+networks:
+  blog-net:
