@@ -23,7 +23,18 @@ func main() {
 	authService := service.NewAuthService(userRepo)
 	authHandler := handler.NewAuthHandler(authService)
 
+	blogRepo := repository.NewBlogRepository(nil)
+	blogService := service.NewBlogService(blogRepo)
+	blogHandler := handler.NewBlogHandler(blogService)
+
 	e := echo.New()
 	e.POST("/register", authHandler.Register)
 	e.POST("/login", authHandler.Login)
+
+	e.POST("/blogs", blogHandler.Create)
+	e.GET("/blogs", blogHandler.List)
+	e.GET("/blogs/:id", blogHandler.GetByID)
+	e.PUT("/blogs/:id", blogHandler.Update)
+	e.DELETE("/blogs/:id", blogHandler.Delete)
+	
 }
