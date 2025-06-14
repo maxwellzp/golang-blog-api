@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 	"log"
 	"maxwellzp/blog-api/internal/handler"
 	"maxwellzp/blog-api/internal/repository"
@@ -29,6 +30,21 @@ func main() {
 	commentHandler := handler.NewCommentHandler(commentService)
 
 	e := echo.New()
+
+	// Middleware
+	// Recover middleware recovers from panics anywhere in the chain, prints stack trace
+	e.Use(middleware.Recover())
+
+	// Secure middleware provides protection against cross-site scripting (XSS) attack, content type sniffing,
+	// clickjacking, insecure connection and other code injection attacks.
+	e.Use(middleware.Secure())
+
+	// Logger middleware logs the information about each HTTP request.
+	e.Use(middleware.Logger())
+
+	// Body limit middleware sets the maximum allowed size for a request body
+	e.Use(middleware.BodyLimit("1M"))
+
 	e.POST("/register", authHandler.Register)
 	e.POST("/login", authHandler.Login)
 
@@ -43,4 +59,6 @@ func main() {
 	e.PUT("/comments/:id", commentHandler.Update)
 	e.DELETE("/comments/:id", commentHandler.Delete)
 	e.GET("/blogs/:blog_id/comments", commentHandler.ListByBlogID)
+
+	e.Start(":8080")
 }
