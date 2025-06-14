@@ -29,6 +29,8 @@ func (h *BlogHandler) Create(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid request"})
 	}
 
+	// c.Request().Context() extracts the context.Context from the incoming HTTP request.
+	// This context includes: Timeout/cancel signals from the client.
 	blog, err := h.BlogService.Create(c.Request().Context(), req.UserID, req.Title, req.Content)
 	if err != nil {
 		log.Printf("Error creating blog: %v", err)
