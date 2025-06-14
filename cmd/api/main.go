@@ -1,31 +1,30 @@
 package main
 
 import (
-	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"log"
+	"maxwellzp/blog-api/internal/config"
+	"maxwellzp/blog-api/internal/database"
 	"maxwellzp/blog-api/internal/handler"
 	"maxwellzp/blog-api/internal/repository"
 	"maxwellzp/blog-api/internal/service"
 )
 
 func main() {
+	cfg := config.Load()
 
-	// Load environment variables
-	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found")
-	}
+	db := database.Connect(cfg)
+	defer db.Close()
 
-	userRepo := repository.NewUserRepository(nil)
+	userRepo := repository.NewUserRepository(db)
 	authService := service.NewAuthService(userRepo)
 	authHandler := handler.NewAuthHandler(authService)
 
-	blogRepo := repository.NewBlogRepository(nil)
+	blogRepo := repository.NewBlogRepository(db)
 	blogService := service.NewBlogService(blogRepo)
 	blogHandler := handler.NewBlogHandler(blogService)
 
-	commentRepo := repository.NewCommentRepository(nil)
+	commentRepo := repository.NewCommentRepository(db)
 	commentService := service.NewCommentService(commentRepo)
 	commentHandler := handler.NewCommentHandler(commentService)
 
@@ -60,5 +59,5 @@ func main() {
 	e.DELETE("/comments/:id", commentHandler.Delete)
 	e.GET("/blogs/:blog_id/comments", commentHandler.ListByBlogID)
 
-	e.Start(":8080")
+	e.Start(":" + cfg.ServerPort)
 }
