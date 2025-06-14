@@ -14,6 +14,8 @@ FROM alpine:latest
 
 WORKDIR /root/
 
+RUN apk --no-cache add ca-certificates
+
 COPY --from=builder /app/blog-api .
 COPY .env .env
 
