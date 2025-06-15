@@ -10,7 +10,7 @@ import (
 	"maxwellzp/blog-api/internal/handler"
 	"maxwellzp/blog-api/internal/repository"
 	"maxwellzp/blog-api/internal/service"
-	"os"
+	"net/http"
 	"os/signal"
 	"syscall"
 	"time"
@@ -65,19 +65,25 @@ func main() {
 	e.DELETE("/comments/:id", commentHandler.Delete)
 	e.GET("/blogs/:blog_id/comments", commentHandler.ListByBlogID)
 
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
 	// Runs the Echo server in a separate goroutine so the main thread can continue.
 	go func() {
-		if err := e.Start(":" + cfg.ServerPort); err != nil {
+		if err := e.Start(":" + cfg.ServerPort); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("shutting down the server: %v", err)
 		}
 	}()
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	//quit := make(chan os.Signal, 1)
+	//signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	// signal.Notify(...) makes the program listen for:
 	// - SIGINT (interrupt signal, like Ctrl+C)
 	// - SIGTERM (termination signal, like docker stop)
-	<-quit // blocks until one of these signals is received.
+	// <-quit // blocks until one of these signals is received.
+
+	// Wait for signal
+	<-ctx.Done()
 	log.Println("shutting down server...")
 
 	/*
