@@ -1,13 +1,19 @@
 package main
 
 import (
+	"context"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"log"
 	"maxwellzp/blog-api/internal/config"
 	"maxwellzp/blog-api/internal/database"
 	"maxwellzp/blog-api/internal/handler"
 	"maxwellzp/blog-api/internal/repository"
 	"maxwellzp/blog-api/internal/service"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 )
 
 func main() {
@@ -59,5 +65,33 @@ func main() {
 	e.DELETE("/comments/:id", commentHandler.Delete)
 	e.GET("/blogs/:blog_id/comments", commentHandler.ListByBlogID)
 
-	e.Start(":" + cfg.ServerPort)
+	// Runs the Echo server in a separate goroutine so the main thread can continue.
+	go func() {
+		if err := e.Start(":" + cfg.ServerPort); err != nil {
+			log.Fatalf("shutting down the server: %v", err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	// signal.Notify(...) makes the program listen for:
+	// - SIGINT (interrupt signal, like Ctrl+C)
+	// - SIGTERM (termination signal, like docker stop)
+	<-quit // blocks until one of these signals is received.
+	log.Println("shutting down server...")
+
+	/*
+		Creates a context with a 10-second timeout — this gives the server time to clean up
+		(close DB connections, finish ongoing requests).
+		Avoids killing in-progress HTTP requests.
+		Prevents corrupted states (e.g., half-written DB rows).
+		Works well with containers, Kubernetes, systemd, etc.
+	*/
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Calls e.Shutdown(ctx) to gracefully stop the Echo server.
+	if err := e.Shutdown(ctx); err != nil {
+		log.Fatalf("error occurred on server shutdown: %v", err)
+	}
 }
