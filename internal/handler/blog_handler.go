@@ -2,7 +2,8 @@ package handler
 
 import (
 	"github.com/labstack/echo/v4"
-	"log"
+	"go.uber.org/zap"
+	"maxwellzp/blog-api/internal/helpers"
 	"maxwellzp/blog-api/internal/service"
 	"net/http"
 	"strconv"
@@ -10,10 +11,11 @@ import (
 
 type BlogHandler struct {
 	BlogService service.BlogService
+	Logger      *zap.SugaredLogger
 }
 
-func NewBlogHandler(blogService service.BlogService) *BlogHandler {
-	return &BlogHandler{BlogService: blogService}
+func NewBlogHandler(blogService service.BlogService, logger *zap.SugaredLogger) *BlogHandler {
+	return &BlogHandler{BlogService: blogService, Logger: logger}
 }
 
 type blogRequest struct {
@@ -25,7 +27,13 @@ type blogRequest struct {
 func (h *BlogHandler) Create(c echo.Context) error {
 	var req blogRequest
 	if err := c.Bind(&req); err != nil {
-		log.Printf("Error binding blog request: %v", err)
+		h.Logger.Errorw("Error binding blog create request",
+			"error", err,
+			"user_id", req.UserID,
+			"title", helpers.TruncateString(req.Title, 100),
+			"content", helpers.TruncateString(req.Content, 100),
+			"status", http.StatusBadRequest,
+		)
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid request"})
 	}
 
@@ -33,66 +41,137 @@ func (h *BlogHandler) Create(c echo.Context) error {
 	// This context includes: Timeout/cancel signals from the client.
 	blog, err := h.BlogService.Create(c.Request().Context(), req.UserID, req.Title, req.Content)
 	if err != nil {
-		log.Printf("Error creating blog: %v", err)
-		return c.JSON(http.StatusBadGateway, echo.Map{"error": "error creating blog"})
+		h.Logger.Errorw("Error creating blog",
+			"error", err,
+			"user_id", req.UserID,
+			"title", helpers.TruncateString(req.Title, 100),
+			"content", helpers.TruncateString(req.Content, 100),
+			"status", http.StatusBadRequest,
+		)
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "error creating blog"})
 	}
+
+	h.Logger.Infow("Blog created successfully",
+		"blog_id", blog.ID,
+		"status", http.StatusCreated,
+	)
 	return c.JSON(http.StatusCreated, blog)
 }
 
 func (h *BlogHandler) GetByID(c echo.Context) error {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	rawID := c.Param("id")
+	id, err := strconv.ParseInt(rawID, 10, 64)
 	if err != nil {
-		log.Printf("Error parsing id param: %v", err)
+		h.Logger.Errorw("Error parsing id param in GetByID",
+			"blog_id", rawID,
+			"error", err,
+			"status", http.StatusBadRequest,
+		)
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid id"})
 	}
 
 	blog, err := h.BlogService.GetByID(c.Request().Context(), id)
 	if err != nil {
-		log.Printf("Error getting blog: %v", err)
+		h.Logger.Errorw("Failed to get blog by id",
+			"blog_id", id,
+			"error", err,
+			"status", http.StatusNotFound,
+		)
 		return c.JSON(http.StatusNotFound, echo.Map{"error": "blog not found"})
 	}
+
+	h.Logger.Infow("Blog found successfully",
+		"blog_id", blog.ID,
+		"status", http.StatusOK,
+	)
 	return c.JSON(http.StatusOK, blog)
 }
 
 func (h *BlogHandler) Update(c echo.Context) error {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	rawID := c.Param("id")
+	id, err := strconv.ParseInt(rawID, 10, 64)
 	if err != nil {
-		log.Printf("Error parsing id param: %v", err)
+		h.Logger.Errorw("Error parsing id param in Update",
+			"blog_id", rawID,
+			"error", err,
+			"status", http.StatusBadRequest,
+		)
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid id"})
 	}
 
 	var req blogRequest
 	if err := c.Bind(&req); err != nil {
-		log.Printf("Error binding blog request: %v", err)
+		h.Logger.Errorw("Error binding blog update request",
+			"blog_id", id,
+			"error", err,
+			"user_id", req.UserID,
+			"title", helpers.TruncateString(req.Title, 100),
+			"content", helpers.TruncateString(req.Content, 100),
+			"status", http.StatusBadRequest,
+		)
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid request"})
 	}
 
 	err = h.BlogService.Update(c.Request().Context(), id, req.Title, req.Content)
 	if err != nil {
-		log.Printf("Error updating blog: %v", err)
+		h.Logger.Errorw("Error updating blog",
+			"blog_id", id,
+			"error", err,
+			"user_id", req.UserID,
+			"title", helpers.TruncateString(req.Title, 100),
+			"content", helpers.TruncateString(req.Content, 100),
+			"status", http.StatusBadRequest,
+		)
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "error updating blog"})
 	}
+
+	h.Logger.Infow("Blog updated successfully",
+		"blog_id", id,
+		"status", http.StatusOK,
+	)
 	return c.NoContent(http.StatusOK)
 }
 
 func (h *BlogHandler) Delete(c echo.Context) error {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	rawID := c.Param("id")
+	id, err := strconv.ParseInt(rawID, 10, 64)
 	if err != nil {
-		log.Printf("Error parsing id param: %v", err)
+		h.Logger.Errorw("Error parsing id param in Delete",
+			"blog_id", rawID,
+			"error", err,
+			"status", http.StatusBadRequest,
+		)
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid id"})
 	}
 	if err := h.BlogService.Delete(c.Request().Context(), id); err != nil {
-		log.Printf("Error deleting blog: %v", err)
+		h.Logger.Errorw("Error deleting blog",
+			"blog_id", id,
+			"error", err,
+			"status", http.StatusInternalServerError,
+		)
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "error deleting blog"})
 	}
+
+	h.Logger.Infow("Blog deleted successfully",
+		"blog_id", id,
+		"status", http.StatusNoContent,
+	)
 	return c.NoContent(http.StatusNoContent)
 }
 
 func (h *BlogHandler) List(c echo.Context) error {
 	blogs, err := h.BlogService.List(c.Request().Context())
 	if err != nil {
-		log.Printf("Error listing blogs: %v", err)
+		h.Logger.Errorw("Error listing blogs",
+			"error", err,
+			"status", http.StatusInternalServerError,
+		)
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "error listing blogs"})
 	}
+
+	h.Logger.Infow("Blogs listed successfully",
+		"blog_count", len(blogs),
+		"status", http.StatusOK,
+	)
 	return c.JSON(http.StatusOK, blogs)
 }
