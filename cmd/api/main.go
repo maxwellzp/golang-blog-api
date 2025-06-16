@@ -8,6 +8,7 @@ import (
 	"maxwellzp/blog-api/internal/config"
 	"maxwellzp/blog-api/internal/database"
 	"maxwellzp/blog-api/internal/handler"
+	"maxwellzp/blog-api/internal/logger"
 	"maxwellzp/blog-api/internal/repository"
 	"maxwellzp/blog-api/internal/service"
 	"net/http"
@@ -17,6 +18,12 @@ import (
 )
 
 func main() {
+	logr, err := logger.NewLogger()
+	if err != nil {
+		log.Fatalf("failed to initialize logger: %v", err)
+	}
+	defer logr.Sync()
+
 	cfg := config.Load()
 
 	db := database.Connect(cfg)
@@ -24,15 +31,15 @@ func main() {
 
 	userRepo := repository.NewUserRepository(db)
 	authService := service.NewAuthService(userRepo)
-	authHandler := handler.NewAuthHandler(authService)
+	authHandler := handler.NewAuthHandler(authService, logr)
 
 	blogRepo := repository.NewBlogRepository(db)
 	blogService := service.NewBlogService(blogRepo)
-	blogHandler := handler.NewBlogHandler(blogService)
+	blogHandler := handler.NewBlogHandler(blogService, logr)
 
 	commentRepo := repository.NewCommentRepository(db)
 	commentService := service.NewCommentService(commentRepo)
-	commentHandler := handler.NewCommentHandler(commentService)
+	commentHandler := handler.NewCommentHandler(commentService, logr)
 
 	e := echo.New()
 
