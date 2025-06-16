@@ -25,9 +25,16 @@ func main() {
 	defer logr.Sync()
 
 	cfg := config.Load()
+	logr.Infow("starting server...",
+		"port", cfg.ServerPort,
+	)
 
 	db := database.Connect(cfg)
 	defer db.Close()
+	logr.Infow("connected to database",
+		"db_host", cfg.MySQLHost,
+		"db_port", cfg.MySQLPort,
+	)
 
 	userRepo := repository.NewUserRepository(db)
 	authService := service.NewAuthService(userRepo)
@@ -51,11 +58,23 @@ func main() {
 	// clickjacking, insecure connection and other code injection attacks.
 	e.Use(middleware.Secure())
 
-	// Logger middleware logs the information about each HTTP request.
-	e.Use(middleware.Logger())
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			start := time.Now()
+			err := next(c)
+			logr.Infow("request",
+				"method", c.Request().Method,
+				"path", c.Request().URL.Path,
+				"status", c.Response().Status,
+				"latency", time.Since(start),
+				"user_agent", c.Request().UserAgent(),
+			)
+			return err
+		}
+	})
 
 	// Body limit middleware sets the maximum allowed size for a request body
-	e.Use(middleware.BodyLimit("1M"))
+	e.Use(middleware.BodyLimit(cfg.BodyLimit))
 
 	e.POST("/register", authHandler.Register)
 	e.POST("/login", authHandler.Login)
@@ -72,13 +91,19 @@ func main() {
 	e.DELETE("/comments/:id", commentHandler.Delete)
 	e.GET("/blogs/:blog_id/comments", commentHandler.ListByBlogID)
 
+	e.GET("/healthz", func(c echo.Context) error {
+		return c.NoContent(http.StatusOK)
+	})
+
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	// Runs the Echo server in a separate goroutine so the main thread can continue.
 	go func() {
 		if err := e.Start(":" + cfg.ServerPort); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("shutting down the server: %v", err)
+			logr.Errorw("shutting down the server",
+				"error", err,
+			)
 		}
 	}()
 
@@ -91,7 +116,7 @@ func main() {
 
 	// Wait for signal
 	<-ctx.Done()
-	log.Println("shutting down server...")
+	logr.Infow("shutting down server...")
 
 	/*
 		Creates a context with a 10-second timeout — this gives the server time to clean up
@@ -100,11 +125,13 @@ func main() {
 		Prevents corrupted states (e.g., half-written DB rows).
 		Works well with containers, Kubernetes, systemd, etc.
 	*/
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Calls e.Shutdown(ctx) to gracefully stop the Echo server.
-	if err := e.Shutdown(ctx); err != nil {
-		log.Fatalf("error occurred on server shutdown: %v", err)
+	// Calls e.Shutdown(shutdownCtx) to gracefully stop the Echo server.
+	if err := e.Shutdown(shutdownCtx); err != nil {
+		logr.Errorw("error occurred on server shutdown",
+			"error", err,
+		)
 	}
 }
