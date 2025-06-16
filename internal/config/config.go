@@ -2,7 +2,7 @@ package config
 
 import (
 	"github.com/joho/godotenv"
-	"log"
+	"go.uber.org/zap"
 	"os"
 )
 
@@ -17,35 +17,41 @@ type Config struct {
 	BodyLimit     string
 }
 
-func Load() *Config {
+func Load(logger *zap.SugaredLogger) *Config {
 	// Load environment variables
 	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found, using environment variables")
+		logger.Warnw("No .env file found")
 	}
 	return &Config{
-		ServerPort:    getEnv("SERVER_PORT", "8080"),
-		MySQLUser:     mustGetEnv("MYSQL_USER"),
-		MySQLPassword: mustGetEnv("MYSQL_PASSWORD"),
-		MySQLHost:     mustGetEnv("MYSQL_HOST"),
-		MySQLPort:     getEnv("MYSQL_PORT", "3306"),
-		MySQLDatabase: mustGetEnv("MYSQL_DATABASE"),
-		JWTSecret:     mustGetEnv("JWT_SECRET"),
-		BodyLimit:     getEnv("BODY_LIMIT", "1M"),
+		ServerPort:    getEnv(logger, "SERVER_PORT", "8080"),
+		MySQLUser:     mustGetEnv(logger, "MYSQL_USER"),
+		MySQLPassword: mustGetEnv(logger, "MYSQL_PASSWORD"),
+		MySQLHost:     mustGetEnv(logger, "MYSQL_HOST"),
+		MySQLPort:     getEnv(logger, "MYSQL_PORT", "3306"),
+		MySQLDatabase: mustGetEnv(logger, "MYSQL_DATABASE"),
+		JWTSecret:     mustGetEnv(logger, "JWT_SECRET"),
+		BodyLimit:     getEnv(logger, "BODY_LIMIT", "1M"),
 	}
 }
 
-func getEnv(key, defaultVal string) string {
+func getEnv(logger *zap.SugaredLogger, key, defaultVal string) string {
 	if val, ok := os.LookupEnv(key); ok {
 		return val
 	}
+	logger.Infow("using default value for env variable",
+		"key", key,
+		"default", defaultVal,
+	)
 	return defaultVal
 }
 
 // mustGetEnv - Distinguishes between "unset" and "empty"
-func mustGetEnv(key string) string {
+func mustGetEnv(logger *zap.SugaredLogger, key string) string {
 	val, ok := os.LookupEnv(key)
 	if !ok || val == "" {
-		log.Fatalf("required environment variable %s is not set", key)
+		logger.Fatalw("required environment variable is not set",
+			"key", key,
+		)
 	}
 	return val
 }

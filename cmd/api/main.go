@@ -14,7 +14,7 @@ func main() {
 	}
 	defer logr.Sync()
 
-	cfg := config.Load()
+	cfg := config.Load(logr)
 
 	srv := server.New(cfg, logr)
 	srv.Start()
