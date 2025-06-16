@@ -14,6 +14,7 @@ type Config struct {
 	MySQLPort     string
 	MySQLDatabase string
 	JWTSecret     string
+	BodyLimit     string
 }
 
 func Load() *Config {
@@ -29,6 +30,7 @@ func Load() *Config {
 		MySQLPort:     getEnv("MYSQL_PORT", "3306"),
 		MySQLDatabase: mustGetEnv("MYSQL_DATABASE"),
 		JWTSecret:     mustGetEnv("JWT_SECRET"),
+		BodyLimit:     getEnv("BODY_LIMIT", "1M"),
 	}
 }
 
