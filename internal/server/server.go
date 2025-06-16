@@ -25,7 +25,7 @@ type Server struct {
 func New(cfg *config.Config, logger *zap.SugaredLogger) *Server {
 	e := echo.New()
 
-	db := database.Connect(cfg)
+	db := database.Connect(cfg, logger)
 	logger.Infow("connected to database",
 		"host", cfg.MySQLHost,
 		"port", cfg.MySQLPort,

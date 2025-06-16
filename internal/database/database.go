@@ -3,13 +3,12 @@ package database
 import (
 	"database/sql"
 	"fmt"
-	"log"
-
 	_ "github.com/go-sql-driver/mysql"
+	"go.uber.org/zap"
 	"maxwellzp/blog-api/internal/config"
 )
 
-func Connect(cfg *config.Config) *sql.DB {
+func Connect(cfg *config.Config, logger *zap.SugaredLogger) *sql.DB {
 	dsn := fmt.Sprintf(
 		"%s:%s@tcp(%s:%s)/%s?parseTime=true",
 		cfg.MySQLUser,
@@ -21,12 +20,18 @@ func Connect(cfg *config.Config) *sql.DB {
 
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
-		log.Fatalf("failed to connect to database: %v", err)
+		logger.Fatalw("failed to connect to database",
+			"error", err,
+			"dsn", dsn,
+		)
 	}
 
 	if err = db.Ping(); err != nil {
-		log.Fatalf("failed to ping database: %v", err)
+		logger.Fatalw("failed to ping database",
+			"error", err,
+		)
 	}
 
+	logger.Infow("successfully connected to database")
 	return db
 }
