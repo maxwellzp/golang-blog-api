@@ -33,7 +33,7 @@ func New(cfg *config.Config, logger *zap.SugaredLogger) *Server {
 
 	// DI
 	userRepo := repository.NewUserRepository(db)
-	authService := service.NewAuthService(userRepo)
+	authService := service.NewAuthService(userRepo, cfg.JWTSecret)
 	authHandler := handler.NewAuthHandler(authService, logger)
 
 	blogRepo := repository.NewBlogRepository(db)
