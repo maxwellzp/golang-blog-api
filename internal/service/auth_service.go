@@ -3,23 +3,26 @@ package service
 import (
 	"context"
 	"errors"
+	"github.com/golang-jwt/jwt/v4"
 	"golang.org/x/crypto/bcrypt"
 	"maxwellzp/blog-api/internal/model"
 	"maxwellzp/blog-api/internal/repository"
 	"strings"
+	"time"
 )
 
 type AuthService interface {
 	Register(ctx context.Context, username, email, password string) (*model.User, error)
-	Login(ctx context.Context, email, password string) (*model.User, error)
+	Login(ctx context.Context, email, password string) (*model.User, string, error)
 }
 
 type authService struct {
-	repo repository.UserRepository
+	repo      repository.UserRepository
+	jwtSecret string
 }
 
-func NewAuthService(repo repository.UserRepository) AuthService {
-	return &authService{repo: repo}
+func NewAuthService(repo repository.UserRepository, jwtSecret string) AuthService {
+	return &authService{repo: repo, jwtSecret: jwtSecret}
 }
 
 func (s *authService) Register(ctx context.Context, username, email, password string) (*model.User, error) {
@@ -56,19 +59,29 @@ func (s *authService) Register(ctx context.Context, username, email, password st
 	return user, nil
 }
 
-func (s *authService) Login(ctx context.Context, email, password string) (*model.User, error) {
+func (s *authService) Login(ctx context.Context, email, password string) (*model.User, string, error) {
 	email = strings.TrimSpace(strings.ToLower(email))
 	user, err := s.repo.FindByEmail(ctx, email)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if user == nil {
-		return nil, errors.New("invalid credentials")
+		return nil, "", errors.New("invalid credentials")
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
-		return nil, errors.New("invalid credentials")
+		return nil, "", errors.New("invalid credentials")
+	}
+
+	// Generate JWT
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"user_id": user.ID,
+		"exp":     time.Now().Add(24 * time.Hour).Unix(),
+	})
+	tokenString, err := token.SignedString([]byte(s.jwtSecret))
+	if err != nil {
+		return nil, "", err
 	}
 
 	user.Password = ""
-	return user, nil
+	return user, tokenString, nil
 }
