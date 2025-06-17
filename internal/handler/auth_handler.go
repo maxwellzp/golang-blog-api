@@ -73,7 +73,7 @@ func (h *AuthHandler) Login(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid request"})
 	}
 
-	user, err := h.AuthService.Login(ctx, req.Email, req.Password)
+	user, token, err := h.AuthService.Login(ctx, req.Email, req.Password)
 	if err != nil {
 		h.Logger.Errorw("Error logging user",
 			"error", err,
@@ -87,5 +87,8 @@ func (h *AuthHandler) Login(c echo.Context) error {
 		"user", user,
 		"status", http.StatusOK,
 	)
-	return c.JSON(http.StatusOK, user)
+	return c.JSON(http.StatusOK, echo.Map{
+		"user":  user,
+		"token": token,
+	})
 }
