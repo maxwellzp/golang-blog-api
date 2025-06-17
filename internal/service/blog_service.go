@@ -14,6 +14,7 @@ type BlogService interface {
 	Delete(ctx context.Context, id int64) error
 	Update(ctx context.Context, id int64, title, content string) error
 	List(ctx context.Context) ([]*model.Blog, error)
+	IsOwner(ctx context.Context, blogID, userID int64) (bool, error)
 }
 
 type blogService struct {
@@ -24,7 +25,7 @@ func NewBlogService(repo repository.BlogRepository) BlogService {
 	return &blogService{repo: repo}
 }
 
-func (s blogService) Create(ctx context.Context, userId int64, title, content string) (*model.Blog, error) {
+func (s *blogService) Create(ctx context.Context, userId int64, title, content string) (*model.Blog, error) {
 	title = strings.TrimSpace(title)
 	content = strings.TrimSpace(content)
 
@@ -44,11 +45,11 @@ func (s blogService) Create(ctx context.Context, userId int64, title, content st
 	return blog, nil
 }
 
-func (s blogService) GetByID(ctx context.Context, id int64) (*model.Blog, error) {
+func (s *blogService) GetByID(ctx context.Context, id int64) (*model.Blog, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s blogService) Update(ctx context.Context, id int64, title, content string) error {
+func (s *blogService) Update(ctx context.Context, id int64, title, content string) error {
 	if title == "" || content == "" {
 		return errors.New("title and content cannot be empty")
 	}
@@ -61,10 +62,18 @@ func (s blogService) Update(ctx context.Context, id int64, title, content string
 	return s.repo.Update(ctx, blog)
 }
 
-func (s blogService) Delete(ctx context.Context, id int64) error {
+func (s *blogService) Delete(ctx context.Context, id int64) error {
 	return s.repo.Delete(ctx, id)
 }
 
-func (s blogService) List(ctx context.Context) ([]*model.Blog, error) {
+func (s *blogService) List(ctx context.Context) ([]*model.Blog, error) {
 	return s.repo.List(ctx)
+}
+
+func (s *blogService) IsOwner(ctx context.Context, blogID, userID int64) (bool, error) {
+	blog, err := s.repo.GetByID(ctx, blogID)
+	if err != nil {
+		return false, err // Could be sql.ErrNoRows
+	}
+	return blog.UserID == userID, nil
 }

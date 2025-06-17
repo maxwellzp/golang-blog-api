@@ -14,6 +14,7 @@ type CommentService interface {
 	Update(ctx context.Context, id int64, content string) error
 	Delete(ctx context.Context, id int64) error
 	ListByBlogID(ctx context.Context, blogID int64) ([]*model.Comment, error)
+	IsOwner(ctx context.Context, commentID, userID int64) (bool, error)
 }
 
 type commentService struct {
@@ -65,4 +66,12 @@ func (s *commentService) Delete(ctx context.Context, id int64) error {
 
 func (s *commentService) ListByBlogID(ctx context.Context, blogID int64) ([]*model.Comment, error) {
 	return s.repo.ListByBlogID(ctx, blogID)
+}
+
+func (s *commentService) IsOwner(ctx context.Context, commentID, userID int64) (bool, error) {
+	comment, err := s.repo.GetByID(ctx, commentID)
+	if err != nil {
+		return false, err
+	}
+	return comment.UserID == userID, nil
 }
