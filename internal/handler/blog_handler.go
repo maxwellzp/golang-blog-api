@@ -4,6 +4,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 	"maxwellzp/blog-api/internal/helpers"
+	"maxwellzp/blog-api/internal/middleware"
 	"maxwellzp/blog-api/internal/service"
 	"net/http"
 	"strconv"
@@ -19,17 +20,20 @@ func NewBlogHandler(blogService service.BlogService, logger *zap.SugaredLogger) 
 }
 
 type blogRequest struct {
-	UserID  int64  `json:"user_id"`
 	Title   string `json:"title"`
 	Content string `json:"content"`
 }
 
 func (h *BlogHandler) Create(c echo.Context) error {
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "unauthorized"})
+	}
 	var req blogRequest
 	if err := c.Bind(&req); err != nil {
 		h.Logger.Errorw("Error binding blog create request",
 			"error", err,
-			"user_id", req.UserID,
+			"user_id", userID,
 			"title", helpers.TruncateString(req.Title, 100),
 			"content", helpers.TruncateString(req.Content, 100),
 			"status", http.StatusBadRequest,
@@ -39,11 +43,11 @@ func (h *BlogHandler) Create(c echo.Context) error {
 
 	// c.Request().Context() extracts the context.Context from the incoming HTTP request.
 	// This context includes: Timeout/cancel signals from the client.
-	blog, err := h.BlogService.Create(c.Request().Context(), req.UserID, req.Title, req.Content)
+	blog, err := h.BlogService.Create(c.Request().Context(), userID, req.Title, req.Content)
 	if err != nil {
 		h.Logger.Errorw("Error creating blog",
 			"error", err,
-			"user_id", req.UserID,
+			"user_id", userID,
 			"title", helpers.TruncateString(req.Title, 100),
 			"content", helpers.TruncateString(req.Content, 100),
 			"status", http.StatusBadRequest,
@@ -88,15 +92,29 @@ func (h *BlogHandler) GetByID(c echo.Context) error {
 }
 
 func (h *BlogHandler) Update(c echo.Context) error {
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "unauthorized"})
+	}
 	rawID := c.Param("id")
 	id, err := strconv.ParseInt(rawID, 10, 64)
 	if err != nil {
 		h.Logger.Errorw("Error parsing id param in Update",
 			"blog_id", rawID,
 			"error", err,
+			"user_id", userID,
 			"status", http.StatusBadRequest,
 		)
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid id"})
+	}
+
+	isOwner, err := h.BlogService.IsOwner(c.Request().Context(), id, userID)
+	if err != nil {
+		h.Logger.Errorw("Error checking blog ownership", "blog_id", id, "user_id", userID, "error", err)
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "internal server error"})
+	}
+	if !isOwner {
+		return c.JSON(http.StatusForbidden, echo.Map{"error": "you are not allowed to modify this blog"})
 	}
 
 	var req blogRequest
@@ -104,7 +122,7 @@ func (h *BlogHandler) Update(c echo.Context) error {
 		h.Logger.Errorw("Error binding blog update request",
 			"blog_id", id,
 			"error", err,
-			"user_id", req.UserID,
+			"user_id", userID,
 			"title", helpers.TruncateString(req.Title, 100),
 			"content", helpers.TruncateString(req.Content, 100),
 			"status", http.StatusBadRequest,
@@ -117,7 +135,7 @@ func (h *BlogHandler) Update(c echo.Context) error {
 		h.Logger.Errorw("Error updating blog",
 			"blog_id", id,
 			"error", err,
-			"user_id", req.UserID,
+			"user_id", userID,
 			"title", helpers.TruncateString(req.Title, 100),
 			"content", helpers.TruncateString(req.Content, 100),
 			"status", http.StatusBadRequest,
@@ -133,20 +151,36 @@ func (h *BlogHandler) Update(c echo.Context) error {
 }
 
 func (h *BlogHandler) Delete(c echo.Context) error {
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "unauthorized"})
+	}
 	rawID := c.Param("id")
 	id, err := strconv.ParseInt(rawID, 10, 64)
 	if err != nil {
 		h.Logger.Errorw("Error parsing id param in Delete",
 			"blog_id", rawID,
 			"error", err,
+			"user_id", userID,
 			"status", http.StatusBadRequest,
 		)
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid id"})
 	}
+
+	isOwner, err := h.BlogService.IsOwner(c.Request().Context(), id, userID)
+	if err != nil {
+		h.Logger.Errorw("Error checking blog ownership", "blog_id", id, "user_id", userID, "error", err)
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "internal server error"})
+	}
+	if !isOwner {
+		return c.JSON(http.StatusForbidden, echo.Map{"error": "you are not allowed to delete this blog"})
+	}
+
 	if err := h.BlogService.Delete(c.Request().Context(), id); err != nil {
 		h.Logger.Errorw("Error deleting blog",
 			"blog_id", id,
 			"error", err,
+			"user_id", userID,
 			"status", http.StatusInternalServerError,
 		)
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "error deleting blog"})

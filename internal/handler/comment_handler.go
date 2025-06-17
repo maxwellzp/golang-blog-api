@@ -4,6 +4,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 	"maxwellzp/blog-api/internal/helpers"
+	"maxwellzp/blog-api/internal/middleware"
 	"maxwellzp/blog-api/internal/service"
 	"net/http"
 	"strconv"
@@ -19,28 +20,31 @@ func NewCommentHandler(commentService service.CommentService, logger *zap.Sugare
 }
 
 type commentRequest struct {
-	UserID  int64  `json:"user_id"`
 	BlogID  int64  `json:"blog_id"`
 	Content string `json:"content"`
 }
 
 func (h *CommentHandler) Create(c echo.Context) error {
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "unauthorized"})
+	}
 	var req commentRequest
 	if err := c.Bind(&req); err != nil {
 		h.Logger.Errorw("Error binding comment create request",
 			"err", err,
-			"user_id", req.UserID,
+			"user_id", userID,
 			"blog_id", req.BlogID,
 			"content", helpers.TruncateString(req.Content, 100),
 			"status", http.StatusBadRequest,
 		)
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid request"})
 	}
-	comment, err := h.CommentService.Create(c.Request().Context(), req.UserID, req.BlogID, req.Content)
+	comment, err := h.CommentService.Create(c.Request().Context(), userID, req.BlogID, req.Content)
 	if err != nil {
 		h.Logger.Errorw("Error creating comment",
 			"err", err,
-			"user_id", req.UserID,
+			"user_id", userID,
 			"blog_id", req.BlogID,
 			"content", helpers.TruncateString(req.Content, 100),
 			"status", http.StatusBadRequest,
@@ -84,15 +88,29 @@ func (h *CommentHandler) GetByID(c echo.Context) error {
 }
 
 func (h *CommentHandler) Update(c echo.Context) error {
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "unauthorized"})
+	}
 	rawID := c.Param("id")
 	id, err := strconv.ParseInt(rawID, 10, 64)
 	if err != nil {
 		h.Logger.Errorw("Error parsing comment id param in Update",
 			"comment_id", rawID,
 			"error", err,
+			"user_id", userID,
 			"status", http.StatusBadRequest,
 		)
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid id"})
+	}
+
+	isOwner, err := h.CommentService.IsOwner(c.Request().Context(), id, userID)
+	if err != nil {
+		h.Logger.Errorw("Error checking comment ownership", "comment_id", id, "user_id", userID, "error", err)
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "internal server error"})
+	}
+	if !isOwner {
+		return c.JSON(http.StatusForbidden, echo.Map{"error": "you are not allowed to modify this comment"})
 	}
 
 	var req commentRequest
@@ -100,7 +118,7 @@ func (h *CommentHandler) Update(c echo.Context) error {
 		h.Logger.Errorw("Error binding comment update request",
 			"comment_id", id,
 			"error", err,
-			"user_id", req.UserID,
+			"user_id", userID,
 			"blog_id", req.BlogID,
 			"content", helpers.TruncateString(req.Content, 100),
 			"status", http.StatusBadRequest,
@@ -112,7 +130,7 @@ func (h *CommentHandler) Update(c echo.Context) error {
 		h.Logger.Errorw("Error updating comment",
 			"comment_id", id,
 			"error", err,
-			"user_id", req.UserID,
+			"user_id", userID,
 			"blog_id", req.BlogID,
 			"content", helpers.TruncateString(req.Content, 100),
 			"status", http.StatusBadRequest,
@@ -128,21 +146,37 @@ func (h *CommentHandler) Update(c echo.Context) error {
 }
 
 func (h *CommentHandler) Delete(c echo.Context) error {
+	userID, err := middleware.GetUserID(c)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "unauthorized"})
+	}
+
 	rawID := c.Param("id")
 	id, err := strconv.ParseInt(rawID, 10, 64)
 	if err != nil {
 		h.Logger.Errorw("Error parsing comment id param in Delete",
 			"comment_id", rawID,
 			"error", err,
+			"user_id", userID,
 			"status", http.StatusBadRequest,
 		)
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid id"})
+	}
+
+	isOwner, err := h.CommentService.IsOwner(c.Request().Context(), id, userID)
+	if err != nil {
+		h.Logger.Errorw("Error checking comment ownership", "comment_id", id, "user_id", userID, "error", err)
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "internal server error"})
+	}
+	if !isOwner {
+		return c.JSON(http.StatusForbidden, echo.Map{"error": "you are not allowed to delete this comment"})
 	}
 
 	if err := h.CommentService.Delete(c.Request().Context(), id); err != nil {
 		h.Logger.Errorw("Error deleting comment",
 			"comment_id", id,
 			"error", err,
+			"user_id", userID,
 			"status", http.StatusInternalServerError,
 		)
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": err.Error()})
