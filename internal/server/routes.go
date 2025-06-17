@@ -2,31 +2,29 @@ package server
 
 import (
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	echoMiddleware "github.com/labstack/echo/v4/middleware"
+	"go.uber.org/zap"
 	"maxwellzp/blog-api/internal/config"
 	"maxwellzp/blog-api/internal/handler"
+	appMiddleware "maxwellzp/blog-api/internal/middleware"
 	"net/http"
 	"time"
-
-	"go.uber.org/zap"
 )
 
-func registerRoutes(e *echo.Echo, cfg *config.Config, log *zap.SugaredLogger, auth *handler.AuthHandler,
+func registerRoutes(
+	e *echo.Echo,
+	cfg *config.Config,
+	log *zap.SugaredLogger,
+	auth *handler.AuthHandler,
 	blog *handler.BlogHandler,
-	comment *handler.CommentHandler) {
+	comment *handler.CommentHandler,
+) {
+	// Global middleware
+	e.Use(echoMiddleware.Recover())
+	e.Use(echoMiddleware.Secure())
+	e.Use(echoMiddleware.BodyLimit(cfg.BodyLimit))
 
-	// Middleware
-	// Recover middleware recovers from panics anywhere in the chain, prints stack trace
-	e.Use(middleware.Recover())
-
-	// Secure middleware provides protection against cross-site scripting (XSS) attack, content type sniffing,
-	// clickjacking, insecure connection and other code injection attacks.
-	e.Use(middleware.Secure())
-
-	// Body limit middleware sets the maximum allowed size for a request body
-	e.Use(middleware.BodyLimit(cfg.BodyLimit))
-
-	// Custom logger middleware with zap
+	// Custom logging middleware
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			start := time.Now()
@@ -42,25 +40,28 @@ func registerRoutes(e *echo.Echo, cfg *config.Config, log *zap.SugaredLogger, au
 		}
 	})
 
-	// Health
+	// --- Public Routes ---
 	e.GET("/healthz", func(c echo.Context) error {
 		return c.NoContent(http.StatusOK)
 	})
-	// Auth
 	e.POST("/register", auth.Register)
 	e.POST("/login", auth.Login)
-
-	// Blogs
-	e.POST("/blogs", blog.Create)
 	e.GET("/blogs", blog.List)
 	e.GET("/blogs/:id", blog.GetByID)
-	e.PUT("/blogs/:id", blog.Update)
-	e.DELETE("/blogs/:id", blog.Delete)
-
-	// Comments
-	e.POST("/comments", comment.Create)
-	e.GET("/comments/:id", comment.GetByID)
-	e.PUT("/comments/:id", comment.Update)
-	e.DELETE("/comments/:id", comment.Delete)
 	e.GET("/blogs/:blog_id/comments", comment.ListByBlogID)
+	e.GET("/comments/:id", comment.GetByID)
+
+	// --- Protected Routes ---
+	authorized := e.Group("")
+	authorized.Use(appMiddleware.JWTMiddleware(cfg.JWTSecret, log))
+
+	// Blogs (auth required)
+	authorized.POST("/blogs", blog.Create)
+	authorized.PUT("/blogs/:id", blog.Update)
+	authorized.DELETE("/blogs/:id", blog.Delete)
+
+	// Comments (auth required)
+	authorized.POST("/comments", comment.Create)
+	authorized.PUT("/comments/:id", comment.Update)
+	authorized.DELETE("/comments/:id", comment.Delete)
 }
