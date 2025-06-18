@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"maxwellzp/blog-api/internal/model"
 	"maxwellzp/blog-api/internal/repository"
@@ -70,10 +71,15 @@ func (s *blogService) List(ctx context.Context) ([]*model.Blog, error) {
 	return s.repo.List(ctx)
 }
 
+var ErrBlogNotFound = errors.New("blog not found")
+
 func (s *blogService) IsOwner(ctx context.Context, blogID, userID int64) (bool, error) {
 	blog, err := s.repo.GetByID(ctx, blogID)
 	if err != nil {
-		return false, err // Could be sql.ErrNoRows
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, ErrBlogNotFound
+		}
+		return false, err
 	}
 	return blog.UserID == userID, nil
 }

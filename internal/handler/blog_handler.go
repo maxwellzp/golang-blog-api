@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 	"maxwellzp/blog-api/internal/helpers"
@@ -110,6 +111,9 @@ func (h *BlogHandler) Update(c echo.Context) error {
 
 	isOwner, err := h.BlogService.IsOwner(c.Request().Context(), id, userID)
 	if err != nil {
+		if errors.Is(err, service.ErrBlogNotFound) {
+			return c.JSON(http.StatusNotFound, echo.Map{"error": "blog not found"})
+		}
 		h.Logger.Errorw("Error checking blog ownership", "blog_id", id, "user_id", userID, "error", err)
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "internal server error"})
 	}
@@ -169,6 +173,9 @@ func (h *BlogHandler) Delete(c echo.Context) error {
 
 	isOwner, err := h.BlogService.IsOwner(c.Request().Context(), id, userID)
 	if err != nil {
+		if errors.Is(err, service.ErrBlogNotFound) {
+			return c.JSON(http.StatusNotFound, echo.Map{"error": "blog not found"})
+		}
 		h.Logger.Errorw("Error checking blog ownership", "blog_id", id, "user_id", userID, "error", err)
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "internal server error"})
 	}
