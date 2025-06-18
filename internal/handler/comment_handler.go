@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 	"maxwellzp/blog-api/internal/helpers"
@@ -106,6 +107,9 @@ func (h *CommentHandler) Update(c echo.Context) error {
 
 	isOwner, err := h.CommentService.IsOwner(c.Request().Context(), id, userID)
 	if err != nil {
+		if errors.Is(err, service.ErrCommentNotFound) {
+			return c.JSON(http.StatusNotFound, echo.Map{"error": "comment not found"})
+		}
 		h.Logger.Errorw("Error checking comment ownership", "comment_id", id, "user_id", userID, "error", err)
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "internal server error"})
 	}
@@ -165,6 +169,9 @@ func (h *CommentHandler) Delete(c echo.Context) error {
 
 	isOwner, err := h.CommentService.IsOwner(c.Request().Context(), id, userID)
 	if err != nil {
+		if errors.Is(err, service.ErrCommentNotFound) {
+			return c.JSON(http.StatusNotFound, echo.Map{"error": "comment not found"})
+		}
 		h.Logger.Errorw("Error checking comment ownership", "comment_id", id, "user_id", userID, "error", err)
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "internal server error"})
 	}

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"maxwellzp/blog-api/internal/model"
 	"maxwellzp/blog-api/internal/repository"
@@ -68,9 +69,14 @@ func (s *commentService) ListByBlogID(ctx context.Context, blogID int64) ([]*mod
 	return s.repo.ListByBlogID(ctx, blogID)
 }
 
+var ErrCommentNotFound = errors.New("comment not found")
+
 func (s *commentService) IsOwner(ctx context.Context, commentID, userID int64) (bool, error) {
 	comment, err := s.repo.GetByID(ctx, commentID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, ErrCommentNotFound
+		}
 		return false, err
 	}
 	return comment.UserID == userID, nil
