@@ -7,6 +7,7 @@ import (
 	"maxwellzp/blog-api/internal/helpers"
 	"maxwellzp/blog-api/internal/middleware"
 	"maxwellzp/blog-api/internal/service"
+	"maxwellzp/blog-api/internal/validation"
 	"net/http"
 	"strconv"
 )
@@ -14,15 +15,20 @@ import (
 type BlogHandler struct {
 	BlogService service.BlogService
 	Logger      *zap.SugaredLogger
+	Validator   *validation.Validator
 }
 
-func NewBlogHandler(blogService service.BlogService, logger *zap.SugaredLogger) *BlogHandler {
-	return &BlogHandler{BlogService: blogService, Logger: logger}
+func NewBlogHandler(
+	blogService service.BlogService,
+	logger *zap.SugaredLogger,
+	validator *validation.Validator,
+) *BlogHandler {
+	return &BlogHandler{BlogService: blogService, Logger: logger, Validator: validator}
 }
 
 type blogRequest struct {
-	Title   string `json:"title"`
-	Content string `json:"content"`
+	Title   string `json:"title" validate:"required,min=3,max=100"`
+	Content string `json:"content" validate:"required,min=10"`
 }
 
 func (h *BlogHandler) Create(c echo.Context) error {
@@ -40,6 +46,13 @@ func (h *BlogHandler) Create(c echo.Context) error {
 			"status", http.StatusBadRequest,
 		)
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid request"})
+	}
+
+	if fieldErrors := h.Validator.ValidateStruct(&req); fieldErrors != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{
+			"error":  "validation failed",
+			"fields": fieldErrors,
+		})
 	}
 
 	// c.Request().Context() extracts the context.Context from the incoming HTTP request.
@@ -132,6 +145,13 @@ func (h *BlogHandler) Update(c echo.Context) error {
 			"status", http.StatusBadRequest,
 		)
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid request"})
+	}
+
+	if fieldErrors := h.Validator.ValidateStruct(&req); fieldErrors != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{
+			"error":  "validation failed",
+			"fields": fieldErrors,
+		})
 	}
 
 	err = h.BlogService.Update(c.Request().Context(), id, req.Title, req.Content)

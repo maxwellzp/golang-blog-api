@@ -7,6 +7,7 @@ import (
 	"maxwellzp/blog-api/internal/helpers"
 	"maxwellzp/blog-api/internal/middleware"
 	"maxwellzp/blog-api/internal/service"
+	"maxwellzp/blog-api/internal/validation"
 	"net/http"
 	"strconv"
 )
@@ -14,15 +15,20 @@ import (
 type CommentHandler struct {
 	CommentService service.CommentService
 	Logger         *zap.SugaredLogger
+	Validator      *validation.Validator
 }
 
-func NewCommentHandler(commentService service.CommentService, logger *zap.SugaredLogger) *CommentHandler {
-	return &CommentHandler{CommentService: commentService, Logger: logger}
+func NewCommentHandler(
+	commentService service.CommentService,
+	logger *zap.SugaredLogger,
+	validator *validation.Validator,
+) *CommentHandler {
+	return &CommentHandler{CommentService: commentService, Logger: logger, Validator: validator}
 }
 
 type commentRequest struct {
-	BlogID  int64  `json:"blog_id"`
-	Content string `json:"content"`
+	BlogID  int64  `json:"blog_id" validate:"required"`
+	Content string `json:"content" validate:"required,min=3,max=255"`
 }
 
 func (h *CommentHandler) Create(c echo.Context) error {
@@ -41,6 +47,14 @@ func (h *CommentHandler) Create(c echo.Context) error {
 		)
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid request"})
 	}
+
+	if fieldErrors := h.Validator.ValidateStruct(&req); fieldErrors != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{
+			"error":  "validation failed",
+			"fields": fieldErrors,
+		})
+	}
+
 	comment, err := h.CommentService.Create(c.Request().Context(), userID, req.BlogID, req.Content)
 	if err != nil {
 		h.Logger.Errorw("Error creating comment",
@@ -128,6 +142,13 @@ func (h *CommentHandler) Update(c echo.Context) error {
 			"status", http.StatusBadRequest,
 		)
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid request"})
+	}
+
+	if fieldErrors := h.Validator.ValidateStruct(&req); fieldErrors != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{
+			"error":  "validation failed",
+			"fields": fieldErrors,
+		})
 	}
 
 	if err := h.CommentService.Update(c.Request().Context(), id, req.Content); err != nil {

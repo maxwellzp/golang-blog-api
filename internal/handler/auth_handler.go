@@ -4,27 +4,33 @@ import (
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 	"maxwellzp/blog-api/internal/service"
+	"maxwellzp/blog-api/internal/validation"
 	"net/http"
 )
 
 type AuthHandler struct {
 	AuthService service.AuthService
 	Logger      *zap.SugaredLogger
+	Validator   *validation.Validator
 }
 
-func NewAuthHandler(authService service.AuthService, logger *zap.SugaredLogger) *AuthHandler {
-	return &AuthHandler{AuthService: authService, Logger: logger}
+func NewAuthHandler(
+	authService service.AuthService,
+	logger *zap.SugaredLogger,
+	validator *validation.Validator,
+) *AuthHandler {
+	return &AuthHandler{AuthService: authService, Logger: logger, Validator: validator}
 }
 
 type registerRequest struct {
-	Username string `json:"username"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Username string `json:"username" validate:"required,min=5,max=30,alphanumunicode"`
+	Email    string `json:"email" validate:"required,email,max=255"`
+	Password string `json:"password" validate:"required,min=12,max=40,containsuppercase,containslowercase,containsnumber,containsspecial"`
 }
 
 type loginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email    string `json:"email" validate:"required,email,max=255"`
+	Password string `json:"password" validate:"required,min=8,max=40"`
 }
 
 func (h *AuthHandler) Register(c echo.Context) error {
@@ -38,7 +44,14 @@ func (h *AuthHandler) Register(c echo.Context) error {
 			"username", req.Username,
 			"status", http.StatusBadRequest,
 		)
-		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid request"})
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid registration request"})
+	}
+
+	if fieldErrors := h.Validator.ValidateStruct(&req); fieldErrors != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{
+			"error":  "validation failed",
+			"fields": fieldErrors,
+		})
 	}
 
 	user, err := h.AuthService.Register(ctx, req.Username, req.Email, req.Password)
@@ -49,7 +62,7 @@ func (h *AuthHandler) Register(c echo.Context) error {
 			"username", req.Username,
 			"status", http.StatusBadRequest,
 		)
-		return c.JSON(http.StatusBadRequest, echo.Map{"error": "something went wrong"})
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid registration request"})
 	}
 
 	h.Logger.Infow("Successfully registered user",
@@ -71,6 +84,13 @@ func (h *AuthHandler) Login(c echo.Context) error {
 			"status", http.StatusBadRequest,
 		)
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid request"})
+	}
+
+	if fieldErrors := h.Validator.ValidateStruct(&req); fieldErrors != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{
+			"error":  "validation failed",
+			"fields": fieldErrors,
+		})
 	}
 
 	user, token, err := h.AuthService.Login(ctx, req.Email, req.Password)
