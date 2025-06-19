@@ -9,6 +9,7 @@ import (
 	"maxwellzp/blog-api/internal/handler"
 	"maxwellzp/blog-api/internal/repository"
 	"maxwellzp/blog-api/internal/service"
+	"maxwellzp/blog-api/internal/validation"
 	"net/http"
 	"os/signal"
 	"syscall"
@@ -30,19 +31,20 @@ func New(cfg *config.Config, logger *zap.SugaredLogger) *Server {
 		"host", cfg.MySQLHost,
 		"port", cfg.MySQLPort,
 	)
+	validator := validation.NewValidator()
 
 	// DI
 	userRepo := repository.NewUserRepository(db)
 	authService := service.NewAuthService(userRepo, cfg.JWTSecret)
-	authHandler := handler.NewAuthHandler(authService, logger)
+	authHandler := handler.NewAuthHandler(authService, logger, validator)
 
 	blogRepo := repository.NewBlogRepository(db)
 	blogService := service.NewBlogService(blogRepo)
-	blogHandler := handler.NewBlogHandler(blogService, logger)
+	blogHandler := handler.NewBlogHandler(blogService, logger, validator)
 
 	commentRepo := repository.NewCommentRepository(db)
 	commentService := service.NewCommentService(commentRepo)
-	commentHandler := handler.NewCommentHandler(commentService, logger)
+	commentHandler := handler.NewCommentHandler(commentService, logger, validator)
 
 	// Routes + Middleware
 	registerRoutes(e, cfg, logger, authHandler, blogHandler, commentHandler)
