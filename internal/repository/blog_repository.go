@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"maxwellzp/blog-api/internal/model"
+	"time"
 )
 
 type BlogRepository interface {
@@ -35,7 +36,7 @@ func (r *blogRepository) Create(ctx context.Context, blog *model.Blog) error {
 }
 
 func (r *blogRepository) GetByID(ctx context.Context, id int64) (*model.Blog, error) {
-	query := "SELECT id, user_id, title, content FROM blog WHERE id = ?"
+	query := "SELECT id, user_id, title, content FROM blog WHERE id = ? AND deleted_at IS NULL"
 
 	row := r.db.QueryRowContext(ctx, query, id)
 
@@ -47,22 +48,23 @@ func (r *blogRepository) GetByID(ctx context.Context, id int64) (*model.Blog, er
 }
 
 func (r *blogRepository) Update(ctx context.Context, blog *model.Blog) error {
-	query := "UPDATE blog SET title = ?, content = ? WHERE id = ?"
+	query := "UPDATE blog SET title = ?, content = ? WHERE id = ? AND deleted_at IS NULL"
 
 	_, err := r.db.ExecContext(ctx, query, blog.Title, blog.Content, blog.ID)
 	return err
 }
 
 func (r *blogRepository) Delete(ctx context.Context, id int64) error {
-	query := "DELETE FROM blog WHERE id = ?"
+	query := "UPDATE blog SET deleted_at = ? WHERE id = ?"
 
-	_, err := r.db.ExecContext(ctx, query, id)
+	_, err := r.db.ExecContext(ctx, query, time.Now(), id)
 	return err
 }
 
 func (r *blogRepository) List(ctx context.Context, limit, offset int) ([]*model.Blog, error) {
 	query := "SELECT id, user_id, title, content " +
 		"FROM blog " +
+		"WHERE deleted_at IS NULL " +
 		"ORDER BY id DESC " +
 		"LIMIT ? OFFSET ?"
 
