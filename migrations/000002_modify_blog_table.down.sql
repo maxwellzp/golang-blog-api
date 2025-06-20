@@ -1,0 +1,1 @@
+ALTER TABLE blog DROP COLUMN deleted_at;
