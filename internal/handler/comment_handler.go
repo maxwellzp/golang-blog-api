@@ -229,7 +229,8 @@ func (h *CommentHandler) ListByBlogID(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid blog id"})
 	}
 
-	comments, err := h.CommentService.ListByBlogID(c.Request().Context(), blogID)
+	pagination := helpers.GetPagination(c)
+	comments, err := h.CommentService.ListByBlogID(c.Request().Context(), blogID, pagination.Limit, pagination.Offset)
 	if err != nil {
 		h.Logger.Errorw("Error listing comments",
 			"blog_id", blogID,

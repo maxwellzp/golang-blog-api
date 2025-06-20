@@ -14,7 +14,7 @@ type BlogService interface {
 	GetByID(ctx context.Context, id int64) (*model.Blog, error)
 	Delete(ctx context.Context, id int64) error
 	Update(ctx context.Context, id int64, title, content string) error
-	List(ctx context.Context) ([]*model.Blog, error)
+	List(ctx context.Context, limit, offset int) ([]*model.Blog, error)
 	IsOwner(ctx context.Context, blogID, userID int64) (bool, error)
 }
 
@@ -67,8 +67,8 @@ func (s *blogService) Delete(ctx context.Context, id int64) error {
 	return s.repo.Delete(ctx, id)
 }
 
-func (s *blogService) List(ctx context.Context) ([]*model.Blog, error) {
-	return s.repo.List(ctx)
+func (s *blogService) List(ctx context.Context, limit, offset int) ([]*model.Blog, error) {
+	return s.repo.List(ctx, limit, offset)
 }
 
 var ErrBlogNotFound = errors.New("blog not found")

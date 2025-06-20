@@ -11,7 +11,7 @@ type BlogRepository interface {
 	GetByID(ctx context.Context, id int64) (*model.Blog, error)
 	Update(ctx context.Context, blog *model.Blog) error
 	Delete(ctx context.Context, id int64) error
-	List(ctx context.Context) ([]*model.Blog, error)
+	List(ctx context.Context, limit, offset int) ([]*model.Blog, error)
 }
 
 type blogRepository struct {
@@ -60,10 +60,13 @@ func (r *blogRepository) Delete(ctx context.Context, id int64) error {
 	return err
 }
 
-func (r *blogRepository) List(ctx context.Context) ([]*model.Blog, error) {
-	query := "SELECT id, user_id, title, content FROM blog"
+func (r *blogRepository) List(ctx context.Context, limit, offset int) ([]*model.Blog, error) {
+	query := "SELECT id, user_id, title, content " +
+		"FROM blog " +
+		"ORDER BY id DESC " +
+		"LIMIT ? OFFSET ?"
 
-	rows, err := r.db.QueryContext(ctx, query)
+	rows, err := r.db.QueryContext(ctx, query, limit, offset)
 
 	if err != nil {
 		return nil, err

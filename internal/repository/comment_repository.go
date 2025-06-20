@@ -11,7 +11,7 @@ type CommentRepository interface {
 	GetByID(ctx context.Context, id int64) (*model.Comment, error)
 	Update(ctx context.Context, comment *model.Comment) error
 	Delete(ctx context.Context, id int64) error
-	ListByBlogID(ctx context.Context, blogID int64) ([]*model.Comment, error)
+	ListByBlogID(ctx context.Context, blogID int64, limit, offset int) ([]*model.Comment, error)
 }
 
 type commentRepository struct {
@@ -56,10 +56,14 @@ func (r *commentRepository) Delete(ctx context.Context, id int64) error {
 	return err
 }
 
-func (r *commentRepository) ListByBlogID(ctx context.Context, blogID int64) ([]*model.Comment, error) {
-	query := "SELECT id, user_id, blog_id, content FROM comment WHERE blog_id = ?"
+func (r *commentRepository) ListByBlogID(ctx context.Context, blogID int64, limit, offset int) ([]*model.Comment, error) {
+	query := "SELECT id, user_id, blog_id, content " +
+		"FROM comment " +
+		"WHERE blog_id = ?" +
+		" ORDER BY id DESC " +
+		"LIMIT ? OFFSET ?"
 
-	rows, err := r.db.QueryContext(ctx, query, blogID)
+	rows, err := r.db.QueryContext(ctx, query, blogID, limit, offset)
 	if err != nil {
 		return nil, err
 	}

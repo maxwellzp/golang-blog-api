@@ -221,7 +221,8 @@ func (h *BlogHandler) Delete(c echo.Context) error {
 }
 
 func (h *BlogHandler) List(c echo.Context) error {
-	blogs, err := h.BlogService.List(c.Request().Context())
+	pagination := helpers.GetPagination(c)
+	blogs, err := h.BlogService.List(c.Request().Context(), pagination.Limit, pagination.Offset)
 	if err != nil {
 		h.Logger.Errorw("Error listing blogs",
 			"error", err,

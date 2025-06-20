@@ -14,7 +14,7 @@ type CommentService interface {
 	GetByID(ctx context.Context, id int64) (*model.Comment, error)
 	Update(ctx context.Context, id int64, content string) error
 	Delete(ctx context.Context, id int64) error
-	ListByBlogID(ctx context.Context, blogID int64) ([]*model.Comment, error)
+	ListByBlogID(ctx context.Context, blogID int64, limit, offset int) ([]*model.Comment, error)
 	IsOwner(ctx context.Context, commentID, userID int64) (bool, error)
 }
 
@@ -65,8 +65,8 @@ func (s *commentService) Delete(ctx context.Context, id int64) error {
 	return s.repo.Delete(ctx, id)
 }
 
-func (s *commentService) ListByBlogID(ctx context.Context, blogID int64) ([]*model.Comment, error) {
-	return s.repo.ListByBlogID(ctx, blogID)
+func (s *commentService) ListByBlogID(ctx context.Context, blogID int64, limit, offset int) ([]*model.Comment, error) {
+	return s.repo.ListByBlogID(ctx, blogID, limit, offset)
 }
 
 var ErrCommentNotFound = errors.New("comment not found")
