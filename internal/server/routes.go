@@ -4,6 +4,7 @@ import (
 	"github.com/labstack/echo/v4"
 	echoMiddleware "github.com/labstack/echo/v4/middleware"
 	"go.uber.org/zap"
+	"golang.org/x/time/rate"
 	"maxwellzp/blog-api/internal/config"
 	"maxwellzp/blog-api/internal/handler"
 	appMiddleware "maxwellzp/blog-api/internal/middleware"
@@ -19,6 +20,14 @@ func registerRoutes(
 	blog *handler.BlogHandler,
 	comment *handler.CommentHandler,
 ) {
+	loginLimiter := echoMiddleware.NewRateLimiterMemoryStoreWithConfig(
+		echoMiddleware.RateLimiterMemoryStoreConfig{
+			Rate:      rate.Every(30 * time.Second), // 1 request every 30s
+			Burst:     2,                            // How many tokens can be used immediately in a short burst
+			ExpiresIn: 15 * time.Minute,             // Sets how long the client’s token bucket state is remembered in memory (per IP by default).
+		},
+	)
+
 	// Global middleware
 	e.Use(echoMiddleware.Recover())
 	e.Use(echoMiddleware.Secure())
@@ -45,7 +54,7 @@ func registerRoutes(
 		return c.NoContent(http.StatusOK)
 	})
 	e.POST("/register", auth.Register)
-	e.POST("/login", auth.Login)
+	e.POST("/login", auth.Login, echoMiddleware.RateLimiter(loginLimiter))
 	e.GET("/blogs", blog.List)
 	e.GET("/blogs/:id", blog.GetByID)
 	e.GET("/blogs/:blog_id/comments", comment.ListByBlogID)
